@@ -1,9 +1,8 @@
 import os
 import pandas as pd
 import numpy as np
-import warnings  # Added to handle suppression
+import warnings  # handle suppression
 
-# Logic for pathing remains the same
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
 PHENOTYPIC_FILENAME = 'adhd200_preprocessed_phenotypics.tsv'
