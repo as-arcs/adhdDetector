@@ -9,7 +9,7 @@ The dataset is too large for git. Each team member must download it locally.
 ### 1. Phenotypic Labels
 
 Download `adhd200_preprocessed_phenotypics.tsv` from the
-[ADHD-200 Preprocessed Connectomes Project](https://www.nitrc.org/frs/shownotes.php?release_id=2048)
+[ADHD-200 Preprocessed Connectomes Project](https://www.nitrc.org/frs/?group_id=383)
 and save it to:
 
 ```
