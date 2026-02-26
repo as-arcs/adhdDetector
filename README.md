@@ -29,7 +29,7 @@ TODO: Figure out repo structure
 
 ```text
 adhdDetector/
-├── data/                               # DO NOT COMMIT THIS FOLDER
+├── data/
 │   ├── adhd200_preprocessed_phenotypics.tsv
 │   ├── ADHD200_CC200_TCs_filtfix/      # Extracted Training Data
 │   └── ADHD200_CC200_TCs_TestRelease/  # Extracted Test Data
