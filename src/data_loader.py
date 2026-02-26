@@ -1,168 +1,157 @@
 import os
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import StratifiedShuffleSplit
+import warnings  # Added to handle suppression
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'raw')
+# Logic for pathing remains the same
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
-# The ADHD-200 phenotypic file uses these names for diagnosis codes:
-# 0 = Control, 1 = ADHD-Combined, 2 = ADHD-Hyperactive, 3 = ADHD-Inattentive
-PHENOTYPIC_FILENAMES = ['phenotypics.tsv', 'phenotypic.tsv', 'phenotypic.csv']
-
+PHENOTYPIC_FILENAME = 'adhd200_preprocessed_phenotypics.tsv'
+TRAIN_CONNECTOMES_DIR = 'ADHD200_CC200_TCs_filtfix'
+TEST_CONNECTOMES_DIR = 'ADHD200_CC200_TCs_TestRelease'
 
 class ADHDDataLoader:
     def __init__(self, data_dir=DATA_DIR):
         self.data_dir = data_dir
-        self.connectomes_dir = os.path.join(data_dir, 'connectomes')
-        self.num_rois = None  # determined dynamically from the first file
-
-    def _find_phenotypic_file(self):
-        for name in PHENOTYPIC_FILENAMES:
-            path = os.path.join(self.data_dir, name)
-            if os.path.exists(path):
-                return path
-        raise FileNotFoundError(
-            f"No phenotypic file found in {self.data_dir}. "
-            f"Expected one of: {PHENOTYPIC_FILENAMES}"
-        )
+        self.train_connectomes_dir = os.path.join(data_dir, TRAIN_CONNECTOMES_DIR)
+        self.test_connectomes_dir = os.path.join(data_dir, TEST_CONNECTOMES_DIR)
+        self.num_rois = None 
 
     def load_phenotypic_data(self):
-        """Loads patient labels and IDs from a TSV or CSV phenotypic file."""
-        path = self._find_phenotypic_file()
+        """Aggressively hunts for labels and ensures IDs match folder naming (7-digit zfill)."""
+        path = os.path.join(self.data_dir, PHENOTYPIC_FILENAME)
+        all_labels = []
 
-        # Try tab-separated first (ADHD-200 standard), then comma-separated
-        for sep in ['\t', ',']:
+        if os.path.exists(path):
             try:
-                df = pd.read_csv(path, sep=sep)
-                if 'DX' in df.columns and 'ScanDir ID' in df.columns:
-                    break
-            except Exception:
-                continue
-        else:
-            raise ValueError(
-                f"Could not parse {path} as a valid phenotypic file. "
-                "Ensure it is a TSV/CSV with 'ScanDir ID' and 'DX' columns. "
-                "Re-download from the ADHD-200 Preprocessed Connectomes Project if needed."
-            )
+                df_master = pd.read_csv(path, sep='\t', dtype=str)
+                id_col = next((c for c in df_master.columns if c.lower().replace(" ", "") in ['scandirid', 'id']), None)
+                dx_col = next((c for c in df_master.columns if c.lower().strip() == 'dx'), None)
+                if id_col and dx_col:
+                    all_labels.append(df_master[[id_col, dx_col]].rename(columns={id_col: 'ScanDir ID', dx_col: 'DX'}))
+            except: pass
 
+        for root, _, files in os.walk(self.data_dir):
+            for f in files:
+                if 'phenotypic' in f.lower() and f.endswith(('.csv', '.tsv')):
+                    try:
+                        temp = pd.read_csv(os.path.join(root, f), sep=None, engine='python', dtype=str)
+                        id_c = next((c for c in temp.columns if c.lower().replace(" ", "") in ['scandirid', 'id']), None)
+                        dx_c = next((c for c in temp.columns if c.lower().strip() in ['dx', 'diagnosis']), None)
+                        if id_c and dx_c:
+                            subset = temp[[id_c, dx_c]].copy()
+                            subset.columns = ['ScanDir ID', 'DX']
+                            all_labels.append(subset)
+                    except: continue
+        
+        if not all_labels:
+            raise ValueError("No phenotypic data found.")
+
+        df = pd.concat(all_labels, ignore_index=True)
+        df['ScanDir ID'] = df['ScanDir ID'].astype(str).str.strip().str.zfill(7)
         df['DX'] = pd.to_numeric(df['DX'], errors='coerce')
-        df = df[df['DX'].notna()]
-        df = df.astype({'DX': 'int'})
-        return df
+        df = df.dropna(subset=['DX']).drop_duplicates(subset=['ScanDir ID'])
+        
+        print(f"[i] Phenotypic labels found for {len(df)} unique subjects.")
+        return df.astype({'DX': 'int'})
 
-    def _load_time_series(self, file_path):
-        """Load a .1D time-series file (tab-separated, with header and metadata columns)."""
-        df = pd.read_csv(file_path, sep='\t')
-        roi_cols = [c for c in df.columns if c.startswith('Mean_')]
-        return df[roi_cols].values
+    def _index_connectome_files(self, connectomes_dir):
+        file_map = {}
+        if not os.path.exists(connectomes_dir):
+            return file_map
+
+        site_dirs = [d for d in os.listdir(connectomes_dir) if os.path.isdir(os.path.join(connectomes_dir, d))]
+
+        for site in site_dirs:
+            site_path = os.path.join(connectomes_dir, site)
+            subject_dirs = [d for d in os.listdir(site_path) if os.path.isdir(os.path.join(site_path, d))]
+            for subject_id in subject_dirs:
+                subject_path = os.path.join(site_path, subject_id)
+                for f in os.listdir(subject_path):
+                    if f.endswith('.1D'):
+                        full_path = os.path.join(subject_path, f)
+                        file_map.setdefault(subject_id, []).append(full_path)
+        return file_map
 
     def flatten_connectome(self, matrix):
-        """Flatten NxN correlation matrix to N*(N-1)/2 unique features (upper triangle)."""
         n = matrix.shape[0]
-        if matrix.shape != (n, n):
-            return None
-        if self.num_rois is None:
-            self.num_rois = n
+        if matrix.shape != (n, n): return None
+        if self.num_rois is None: self.num_rois = n
         upper_tri_indices = np.triu_indices(n, k=1)
         return matrix[upper_tri_indices]
 
-    def load_data(self, binary_classification=False):
-        print(f"Looking for data in: {self.data_dir}")
+    def _process_subjects(self, df, file_map, binary_classification=False):
+        """Match labels to files and extract features, suppressing noisy fMRI warnings."""
+        X_list, y_list, valid_ids = [], [], []
+        available_folder_ids = set(file_map.keys())
+        subjects_to_process = df[df['ScanDir ID'].isin(available_folder_ids)]
 
-        try:
-            df = self.load_phenotypic_data()
-        except (FileNotFoundError, ValueError) as e:
-            print(f"[!] Error: {e}")
-            return np.array([]), np.array([]), []
-
-        if not os.path.exists(self.connectomes_dir):
-            print(f"[!] Error: Connectomes folder not found at {self.connectomes_dir}")
-            return np.array([]), np.array([]), []
-
-        print("Indexing files in connectomes folder...")
-        files_in_dir = [f for f in os.listdir(self.connectomes_dir) if f.endswith('.1D')]
-
-        X_list = []
-        y_list = []
-        valid_ids = []
-        skipped = 0
-
-        print(f"Processing {len(df)} subjects...")
-
-        for _, row in df.iterrows():
+        for _, row in subjects_to_process.iterrows():
             subject_id = str(row['ScanDir ID'])
             diagnosis = row['DX']
-
-            matching_files = [f for f in files_in_dir if subject_id in f]
-
-            if not matching_files:
-                skipped += 1
-                continue
-
-            matching_files.sort()
-            file_name = matching_files[0]
-            file_path = os.path.join(self.connectomes_dir, file_name)
+            matching_paths = file_map.get(subject_id)
+            filtered = [p for p in matching_paths if 'sfnwmrda' in os.path.basename(p)]
+            file_path = sorted(filtered)[0] if filtered else sorted(matching_paths)[0]
 
             try:
-                time_series = self._load_time_series(file_path)
+                time_series_df = pd.read_csv(file_path, sep=r'\s+')
+                time_series_df.columns = [c.strip() for c in time_series_df.columns]
+                roi_cols = [c for c in time_series_df.columns if c.startswith('Mean_')]
+                time_series = time_series_df[roi_cols].values
 
-                # Pearson correlation → connectivity matrix (ROIs x ROIs)
-                matrix = np.corrcoef(time_series, rowvar=False)
+                if self.num_rois is None: self.num_rois = time_series.shape[1]
+                if time_series.shape[1] != self.num_rois: continue
 
-                # Check for NaNs (caused by 0 variance regions) and replace with 0
-                if np.isnan(matrix).any():
-                    matrix = np.nan_to_num(matrix) 
-
+                # FIX: Suppress RuntimeWarnings for empty/constant ROIs
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=RuntimeWarning)
+                    matrix = np.corrcoef(time_series, rowvar=False)
+                
+                # Turn NaNs (from zero-variance regions) into 0.0
+                matrix = np.nan_to_num(matrix)
+                
                 features = self.flatten_connectome(matrix)
-                if features is None:
-                    continue
+                if features is None: continue
 
+                label = diagnosis
                 if binary_classification:
                     label = 0 if diagnosis == 0 else 1
-                else:
-                    label = diagnosis
 
                 X_list.append(features)
                 y_list.append(label)
                 valid_ids.append(subject_id)
 
-            except Exception as e:
-                print(f"Error processing {subject_id}: {e}")
+            except Exception:
+                continue
 
-        if skipped:
-            print(f"[i] {skipped} subjects had no matching connectome file.")
+        return np.array(X_list), np.array(y_list), valid_ids
 
-        X = np.array(X_list)
-        y = np.array(y_list)
+    def load_train_test_data(self, binary_classification=False):
+        print(f"Looking for data in: {self.data_dir}")
+        try:
+            df = self.load_phenotypic_data()
+        except Exception as e:
+            print(f"[!] Error: {e}")
+            return (np.array([]),), (np.array([]),)
 
-        return X, y, valid_ids
+        train_map = self._index_connectome_files(self.train_connectomes_dir)
+        test_map = self._index_connectome_files(self.test_connectomes_dir)
 
-    def get_train_test_split(self, X, y, test_size=0.2, random_state=42):
-        """
-        Standardized split for the whole team.
-        Ensures everyone uses the exact same Train/Test sets.
-        """
-        if len(X) == 0:
-            return [], [], [], []
-            
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
-        for train_idx, test_idx in splitter.split(X, y):
-            return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
-        return [], [], [], []
+        print("Processing training subjects...")
+        X_train, y_train, train_ids = self._process_subjects(df, train_map, binary_classification)
+
+        print("Processing test subjects...")
+        X_test, y_test, test_ids = self._process_subjects(df, test_map, binary_classification)
+
+        return (X_train, y_train, train_ids), (X_test, y_test, test_ids)
 
 if __name__ == "__main__":
     loader = ADHDDataLoader()
-    X, y, ids = loader.load_data()
+    (X_train, y_train, train_ids), (X_test, y_test, test_ids) = loader.load_train_test_data()
 
-    if len(X) > 0:
-        n_rois = loader.num_rois
-        expected_features = n_rois * (n_rois - 1) // 2
-        print(f"\nSuccess! Loaded {X.shape[0]} subjects.")
-        print(f"ROIs detected: {n_rois}")
-        print(f"Feature vector length: {X.shape[1]} (expected {expected_features})")
-        print(f"Label distribution: {dict(zip(*np.unique(y, return_counts=True)))}")
-
-        X_train, X_test, y_train, y_test = loader.get_train_test_split(X, y)
-        print(f"Train: {X_train.shape}  Test: {X_test.shape}")
-    else:
-        print("No data loaded. Check that phenotypic.tsv exists and is valid.")
+    if len(X_train) > 0:
+        print(f"\nSuccess!")
+        print(f"ROIs detected: {loader.num_rois}")
+        print(f"Train: {X_train.shape[0]} subjects")
+        print(f"Test:  {X_test.shape[0]} subjects")
+        print(f"Labels: {dict(zip(*np.unique(y_train, return_counts=True)))}")
