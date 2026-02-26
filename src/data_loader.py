@@ -102,12 +102,12 @@ class ADHDDataLoader:
                 if self.num_rois is None: self.num_rois = time_series.shape[1]
                 if time_series.shape[1] != self.num_rois: continue
 
-                # FIX: Suppress RuntimeWarnings for empty/constant ROIs
+                # suppress RuntimeWarnings for empty/constant ROIs
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", category=RuntimeWarning)
                     matrix = np.corrcoef(time_series, rowvar=False)
                 
-                # Turn NaNs (from zero-variance regions) into 0.0
+                # turn NaNs (from zero-variance regions) into 0.0
                 matrix = np.nan_to_num(matrix)
                 
                 features = self.flatten_connectome(matrix)
