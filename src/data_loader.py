@@ -10,17 +10,22 @@ TRAIN_CONNECTOMES_DIR = 'ADHD200_CC200_TCs_filtfix'
 TEST_CONNECTOMES_DIR = 'ADHD200_CC200_TCs_TestRelease'
 
 class ADHDDataLoader:
+    """Loads ADHD-200 rs-fMRI connectome data and phenotypic labels,
+    computes correlation matrrices, and returns train/test feature arrays"""
     def __init__(self, data_dir=DATA_DIR):
         self.data_dir = data_dir
         self.train_connectomes_dir = os.path.join(data_dir, TRAIN_CONNECTOMES_DIR)
         self.test_connectomes_dir = os.path.join(data_dir, TEST_CONNECTOMES_DIR)
-        self.num_rois = None 
+        self.num_rois = None # set on first successful data load
 
     def load_phenotypic_data(self):
-        """Aggressively hunts for labels and ensures IDs match folder naming (7-digit zfill)."""
+        """Searches for phenotypic label files in data directory.
+        Returns a DF with columns ['ScanDir ID', 'DX']."""
+
         path = os.path.join(self.data_dir, PHENOTYPIC_FILENAME)
         all_labels = []
 
+        # try loading main phenotypic file first
         if os.path.exists(path):
             try:
                 df_master = pd.read_csv(path, sep='\t', dtype=str)
@@ -29,7 +34,8 @@ class ADHDDataLoader:
                 if id_col and dx_col:
                     all_labels.append(df_master[[id_col, dx_col]].rename(columns={id_col: 'ScanDir ID', dx_col: 'DX'}))
             except: pass
-
+        
+        # also search for other phenotypic files in subdirectories
         for root, _, files in os.walk(self.data_dir):
             for f in files:
                 if 'phenotypic' in f.lower() and f.endswith(('.csv', '.tsv')):
@@ -46,6 +52,7 @@ class ADHDDataLoader:
         if not all_labels:
             raise ValueError("No phenotypic data found.")
 
+        # combine all found label sources, normalize IDs, clean
         df = pd.concat(all_labels, ignore_index=True)
         df['ScanDir ID'] = df['ScanDir ID'].astype(str).str.strip().str.zfill(7)
         df['DX'] = pd.to_numeric(df['DX'], errors='coerce')
@@ -55,6 +62,8 @@ class ADHDDataLoader:
         return df.astype({'DX': 'int'})
 
     def _index_connectome_files(self, connectomes_dir):
+        f"""Goes through connectome directory (site/subject/*.1D) and builds
+        a map: {subject_id: [list of .1D file paths]}."""
         file_map = {}
         if not os.path.exists(connectomes_dir):
             return file_map
@@ -73,6 +82,7 @@ class ADHDDataLoader:
         return file_map
 
     def flatten_connectome(self, matrix):
+        """Takes NxN correlation matrix and extracts upper triangle as a 1D feature vector."""
         n = matrix.shape[0]
         if matrix.shape != (n, n): return None
         if self.num_rois is None: self.num_rois = n
@@ -80,19 +90,28 @@ class ADHDDataLoader:
         return matrix[upper_tri_indices]
 
     def _process_subjects(self, df, file_map, binary_classification=False):
-        """Match labels to files and extract features, suppressing noisy fMRI warnings."""
+        """For each subject with a label and connectome file:
+        1. Read fMRI (.1D file)
+        2. Compute the correlation matrix from ROIs
+        3. Flatten upper triangle of matrix into feature vector 
+        
+        Returns array of features(X), labels(y), and subject IDs"""
         X_list, y_list, valid_ids = [], [], []
         available_folder_ids = set(file_map.keys())
+        # only process subjects that have both labels and scan files
         subjects_to_process = df[df['ScanDir ID'].isin(available_folder_ids)]
 
         for _, row in subjects_to_process.iterrows():
             subject_id = str(row['ScanDir ID'])
             diagnosis = row['DX']
             matching_paths = file_map.get(subject_id)
+            # prefer sfnwmrda preprocessing
             filtered = [p for p in matching_paths if 'sfnwmrda' in os.path.basename(p)]
             file_path = sorted(filtered)[0] if filtered else sorted(matching_paths)[0]
 
             try:
+                # each .1D file has timepoints as rows and ROI columns
+                # Mean_0001, Mean_0002, ...
                 time_series_df = pd.read_csv(file_path, sep=r'\s+')
                 time_series_df.columns = [c.strip() for c in time_series_df.columns]
                 roi_cols = [c for c in time_series_df.columns if c.startswith('Mean_')]
@@ -101,7 +120,7 @@ class ADHDDataLoader:
                 if self.num_rois is None: self.num_rois = time_series.shape[1]
                 if time_series.shape[1] != self.num_rois: continue
 
-                # suppress RuntimeWarnings for empty/constant ROIs
+                # calculate Pearson correlation between ROIs
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", category=RuntimeWarning)
                     matrix = np.corrcoef(time_series, rowvar=False)
@@ -112,20 +131,27 @@ class ADHDDataLoader:
                 features = self.flatten_connectome(matrix)
                 if features is None: continue
 
+                # Diagnosis (DX):
+                # - 0 = neurotypical
+                # - 1 = ADHD-Combined 
+                # - 2 = ADHD-Hyperactive
+                # - 3 = ADHD-Inattentive
                 label = diagnosis
                 if binary_classification:
-                    label = 0 if diagnosis == 0 else 1
+                    label = 0 if diagnosis == 0 else 1 # collapse all ADHD subtypes into ADHD-C
 
                 X_list.append(features)
                 y_list.append(label)
                 valid_ids.append(subject_id)
 
             except Exception:
-                continue
+                continue # skip patients with unreadable files
 
         return np.array(X_list), np.array(y_list), valid_ids
 
     def load_train_test_data(self, binary_classification=False):
+        """Loads labels, processes train and test set.
+        Returns ((X_train, y_train, ids), (X_test, y_test, ids))"""
         print(f"Looking for data in: {self.data_dir}")
         try:
             df = self.load_phenotypic_data()
@@ -133,6 +159,7 @@ class ADHDDataLoader:
             print(f"[!] Error: {e}")
             return (np.array([]),), (np.array([]),)
 
+        
         train_map = self._index_connectome_files(self.train_connectomes_dir)
         test_map = self._index_connectome_files(self.test_connectomes_dir)
 
