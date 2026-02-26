@@ -62,7 +62,7 @@ class ADHDDataLoader:
         return df.astype({'DX': 'int'})
 
     def _index_connectome_files(self, connectomes_dir):
-        f"""Goes through connectome directory (site/subject/*.1D) and builds
+        """Goes through connectome directory (site/subject/*.1D) and builds
         a map: {subject_id: [list of .1D file paths]}."""
         file_map = {}
         if not os.path.exists(connectomes_dir):
