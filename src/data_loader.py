@@ -161,7 +161,7 @@ class ADHDDataLoader:
             print(f"[!] Error: {e}")
             return (np.array([]),), (np.array([]),)
 
-        df = df[df['DX'] != 2] # filter out ADHD-Hyperactive (only 13 subjects) 
+        df = df[df['DX'] != 2]  # drop ADHD-Hyperactive (only 13 subjects)
 
         # combine file maps from both directories into one pool
         train_map = self._index_connectome_files(self.train_connectomes_dir)
