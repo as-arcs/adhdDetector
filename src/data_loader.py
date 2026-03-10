@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import warnings  # handle suppression
+from sklearn.model_selection import train_test_split
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
@@ -138,7 +139,7 @@ class ADHDDataLoader:
                 # - 3 = ADHD-Inattentive
                 label = diagnosis
                 if binary_classification:
-                    label = 0 if diagnosis == 0 else 1 # collapse all ADHD subtypes into ADHD-C
+                    label = 0 if diagnosis == 0 else 1 # collapse all ADHD subtypes
 
                 X_list.append(features)
                 y_list.append(label)
@@ -149,9 +150,10 @@ class ADHDDataLoader:
 
         return np.array(X_list), np.array(y_list), valid_ids
 
-    def load_train_test_data(self, binary_classification=False):
-        """Loads labels, processes train and test set.
-        Returns ((X_train, y_train, ids), (X_test, y_test, ids))"""
+    def load_data(self, binary_classification=False, test_size=0.2, random_state=42):
+        """Loads labels, combines train and test connectomes into one pool,
+        and performs a stratified train/test split.
+        Returns ((X_train, y_train, train_ids), (X_test, y_test, test_ids))"""
         print(f"Looking for data in: {self.data_dir}")
         try:
             df = self.load_phenotypic_data()
@@ -159,25 +161,41 @@ class ADHDDataLoader:
             print(f"[!] Error: {e}")
             return (np.array([]),), (np.array([]),)
 
-        
+        df = df[df['DX'] != 2]  # drop ADHD-Hyperactive (only 13 subjects)
+
+        # combine file maps from both directories into one pool
         train_map = self._index_connectome_files(self.train_connectomes_dir)
         test_map = self._index_connectome_files(self.test_connectomes_dir)
+        combined_map = {**train_map, **test_map}
+        for sid in train_map:
+            if sid in test_map:
+                combined_map[sid] = train_map[sid] + test_map[sid]
 
-        print("Processing training subjects...")
-        X_train, y_train, train_ids = self._process_subjects(df, train_map, binary_classification)
+        print("Processing all subjects...")
+        X_all, y_all, all_ids = self._process_subjects(df, combined_map, binary_classification)
 
-        print("Processing test subjects...")
-        X_test, y_test, test_ids = self._process_subjects(df, test_map, binary_classification)
+        if len(X_all) == 0:
+            print("[!] No subjects were successfully processed.")
+            return (np.array([]),), (np.array([]),)
+
+        # stratified split preserves class proportions in train and test
+        X_train, X_test, y_train, y_test, train_ids, test_ids = train_test_split(
+            X_all, y_all, all_ids,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=y_all
+        )
 
         return (X_train, y_train, train_ids), (X_test, y_test, test_ids)
 
 if __name__ == "__main__":
     loader = ADHDDataLoader()
-    (X_train, y_train, train_ids), (X_test, y_test, test_ids) = loader.load_train_test_data()
+    (X_train, y_train, train_ids), (X_test, y_test, test_ids) = loader.load_data()
 
     if len(X_train) > 0:
         print(f"\nSuccess!")
         print(f"ROIs detected: {loader.num_rois}")
-        print(f"Train: {X_train.shape[0]} subjects")
-        print(f"Test:  {X_test.shape[0]} subjects")
-        print(f"Labels: {dict(zip(*np.unique(y_train, return_counts=True)))}")
+        print(f"Feature vector length: {X_train.shape[1]}")
+        print(f"Train: {X_train.shape}  Test: {X_test.shape}")
+        print(f"Label distribution (train): {dict(zip(*np.unique(y_train, return_counts=True)))}")
+        print(f"Label distribution (test):  {dict(zip(*np.unique(y_test, return_counts=True)))}")

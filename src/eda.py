@@ -8,11 +8,11 @@ from src.data_loader import ADHDDataLoader
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'outputs', 'eda')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-DX_LABELS = {0: 'Control', 1: 'ADHD-Combined', 2: 'ADHD-Hyperactive', 3: 'ADHD-Inattentive'}
+DX_LABELS = {0: 'Control', 1: 'ADHD-Combined', 3: 'ADHD-Inattentive'}
 
 # Load data
 loader = ADHDDataLoader()
-(X_train, y_train, _), (X_test, y_test, _) = loader.load_train_test_data()
+(X_train, y_train, _), (X_test, y_test, _) = loader.load_data()
 X_all = np.concatenate([X_train, X_test]) if len(X_test) > 0 else X_train
 y_all = np.concatenate([y_train, y_test]) if len(y_test) > 0 else y_train
 
@@ -25,7 +25,7 @@ for k, v in zip(unique, counts):
     print(f"  {DX_LABELS.get(int(k), str(k))}: {v}")
 
 fig, ax = plt.subplots(figsize=(6, 4))
-ax.bar([DX_LABELS.get(int(k), str(k)) for k in unique], counts, color=['#4CAF50', '#FF5722', '#FFC107', '#2196F3'])
+ax.bar([DX_LABELS.get(int(k), str(k)) for k in unique], counts, color=['#4CAF50', '#FF5722', '#2196F3'])
 ax.set_title('Class Distribution')
 ax.set_ylabel('Count')
 fig.tight_layout()
