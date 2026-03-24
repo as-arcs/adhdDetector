@@ -26,9 +26,9 @@ X_test = scaler.transform(X_test)
 
 # PCA
 pca = PCA(n_components=0.80, random_state=42)
-X_train = pca.fit_transform(X_train)
-X_test = pca.transform(X_test)
-print(f"PCA: 17955 features -> {X_train.shape[1]} components (80% variance)")
+X_train_pca = pca.fit_transform(X_train)
+X_test_pca = pca.transform(X_test)
+print(f"PCA: {X_train.shape[1]} features -> {X_train_pca.shape[1]} components (80% variance)")
 
 # train SVM with RBF kernel
 print("Training SVM (RBF kernel)...")
@@ -37,10 +37,10 @@ model = SVC(
     class_weight='balanced',
     random_state=42
 )
-model.fit(X_train, y_train)
+model.fit(X_train_pca, y_train)
 
 # evaluate the model
-y_pred = model.predict(X_test)
+y_pred = model.predict(X_test_pca)
 
 label_names = [DX_LABELS[k] for k in sorted(DX_LABELS.keys())]
 print(f"\nTest Accuracy: {(y_pred == y_test).mean():.4f}")
@@ -50,7 +50,7 @@ print(report)
 
 # save classification report
 with open(os.path.join(OUTPUT_DIR, 'classification_report.txt'), 'w') as f:
-    f.write(f"PCA Components: {X_train.shape[1]} (80% variance)\n")
+    f.write(f"PCA Components: {X_train_pca.shape[1]} (80% variance)\n")
     f.write(f"Kernel: RBF\n")
     f.write(f"Test Accuracy: {(y_pred == y_test).mean():.4f}\n\n")
     f.write(report)
