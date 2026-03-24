@@ -12,7 +12,7 @@ TEST_CONNECTOMES_DIR = 'ADHD200_CC200_TCs_TestRelease'
 
 class ADHDDataLoader:
     """Loads ADHD-200 rs-fMRI connectome data and phenotypic labels,
-    computes correlation matrrices, and returns train/test feature arrays"""
+    computes correlation matrices, and returns train/test feature arrays"""
     def __init__(self, data_dir=DATA_DIR):
         self.data_dir = data_dir
         self.train_connectomes_dir = os.path.join(data_dir, TRAIN_CONNECTOMES_DIR)
