@@ -29,7 +29,7 @@ pca = PCA(n_components=0.80, random_state=42)
 X_train_pca = pca.fit_transform(X_train)
 X_test_pca = pca.transform(X_test)
 
-print(f"PCA: {X_train.shape[1]} features -> {X_train_pca.shape[1]} components (95% variance)")
+print(f"PCA: {X_train.shape[1]} features -> {X_train_pca.shape[1]} components (80% variance)")
 
 # plot explained variance
 cumvar = np.cumsum(pca.explained_variance_ratio_)
@@ -65,7 +65,7 @@ print(report)
 
 # save classification report
 with open(os.path.join(OUTPUT_DIR, 'classification_report.txt'), 'w') as f:
-    f.write(f"PCA Components: {X_train_pca.shape[1]} (95% variance)\n")
+    f.write(f"PCA Components: {X_train_pca.shape[1]} (80% variance)\n")
     f.write(f"Test Accuracy: {(y_pred == y_test).mean():.4f}\n\n")
     f.write(report)
 
