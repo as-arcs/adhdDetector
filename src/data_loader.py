@@ -13,7 +13,7 @@ TEST_CONNECTOMES_DIR = 'ADHD200_CC200_TCs_TestRelease'
 
 class ADHDDataLoader:
     """Loads ADHD-200 rs-fMRI connectome data and phenotypic labels,
-    computes correlation matrrices, and returns train/test feature arrays"""
+    computes correlation matrices, and returns train/test feature arrays"""
     def __init__(self, data_dir=DATA_DIR):
         self.data_dir = data_dir
         self.train_connectomes_dir = os.path.join(data_dir, TRAIN_CONNECTOMES_DIR)
@@ -220,10 +220,6 @@ if __name__ == "__main__":
     if len(X_train) > 0:
         print(f"\nSuccess!")
         print(f"ROIs detected: {loader.num_rois}")
-        print(f"Feature vector length: {X_train.shape[1]}")
-        print(f"Train: {X_train.shape}  Test: {X_test.shape}")
-        print(f"Label distribution (train): {dict(zip(*np.unique(y_train, return_counts=True)))}")
-        print(f"Label distribution (test):  {dict(zip(*np.unique(y_test, return_counts=True)))}")
         print(f"Feature vector length: {X_train.shape[1]}")
         print(f"Train: {X_train.shape}  Test: {X_test.shape}")
         print(f"Label distribution (train): {dict(zip(*np.unique(y_train, return_counts=True)))}")
