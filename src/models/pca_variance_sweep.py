@@ -1,3 +1,4 @@
+# Sweep PCA variance thresholds (50%-99%) to find the best component count for logistic regression.
 import os, sys
 import numpy as np
 import matplotlib.pyplot as plt

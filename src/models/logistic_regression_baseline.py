@@ -1,3 +1,4 @@
+# Logistic regression baseline on raw connectivity features (no dimensionality reduction).
 import os, sys
 import numpy as np
 import matplotlib.pyplot as plt
