@@ -32,7 +32,15 @@ fig.tight_layout()
 fig.savefig(os.path.join(OUTPUT_DIR, 'class_distribution.png'), dpi=150)
 plt.close()
 
-# average connectivity heatmaps (Control vs ADHD)
+# Average connectivity heatmaps (Control vs ADHD)
+# Each axis represents one of the 190 brain regions (ROIs). Each pixel (i, j)
+# shows the average Pearson correlation between region i and region j's fMRI activity.
+# Red = positive correlation (regions activate together),
+# Blue = negative correlation (one activates while the other deactivates).
+# Control: average connectivity for neurotypical subjects.
+# ADHD: average connectivity for ADHD subjects (Combined + Inattentive).
+# Difference: where ADHD brains differ — red = stronger, blue = weaker connectivity.
+
 n = loader.num_rois
 
 def to_matrix(vec):
@@ -42,11 +50,15 @@ def to_matrix(vec):
 
 avg_ctrl = X_all[y_all == 0].mean(axis=0)
 avg_adhd = X_all[y_all != 0].mean(axis=0)
+diff = avg_adhd - avg_ctrl
+diff_abs = np.max(np.abs(diff))
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-for ax, data, title in zip(axes, [avg_ctrl, avg_adhd, avg_adhd - avg_ctrl],
-                            ['Control', 'ADHD', 'Difference (ADHD - Control)']):
-    im = ax.imshow(to_matrix(data), cmap='RdBu_r', vmin=-0.3, vmax=0.3)
+for ax, data, title, vlim in zip(axes,
+                                  [avg_ctrl, avg_adhd, diff],
+                                  ['Control', 'ADHD', 'Difference (ADHD - Control)'],
+                                  [1.0, 1.0, diff_abs]):
+    im = ax.imshow(to_matrix(data), cmap='RdBu_r', vmin=-vlim, vmax=vlim)
     ax.set_title(title)
     plt.colorbar(im, ax=ax, shrink=0.8)
 fig.tight_layout()

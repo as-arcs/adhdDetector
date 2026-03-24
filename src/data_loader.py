@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import warnings  # handle suppression
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
@@ -140,6 +141,7 @@ class ADHDDataLoader:
                 label = diagnosis
                 if binary_classification:
                     label = 0 if diagnosis == 0 else 1 # collapse all ADHD subtypes
+                    label = 0 if diagnosis == 0 else 1 # collapse all ADHD subtypes
 
                 X_list.append(features)
                 y_list.append(label)
@@ -150,6 +152,10 @@ class ADHDDataLoader:
 
         return np.array(X_list), np.array(y_list), valid_ids
 
+    def load_data(self, binary_classification=False, test_size=0.2, random_state=42):
+        """Loads labels, combines train and test connectomes into one pool,
+        and performs a stratified train/test split.
+        Returns ((X_train, y_train, train_ids), (X_test, y_test, test_ids))"""
     def load_data(self, binary_classification=False, test_size=0.2, random_state=42):
         """Loads labels, combines train and test connectomes into one pool,
         and performs a stratified train/test split.
@@ -173,7 +179,25 @@ class ADHDDataLoader:
 
         print("Processing all subjects...")
         X_all, y_all, all_ids = self._process_subjects(df, combined_map, binary_classification)
+        combined_map = {**train_map, **test_map}
+        for sid in train_map:
+            if sid in test_map:
+                combined_map[sid] = train_map[sid] + test_map[sid]
 
+        print("Processing all subjects...")
+        X_all, y_all, all_ids = self._process_subjects(df, combined_map, binary_classification)
+
+        if len(X_all) == 0:
+            print("[!] No subjects were successfully processed.")
+            return (np.array([]),), (np.array([]),)
+
+        # stratified split preserves class proportions in train and test
+        X_train, X_test, y_train, y_test, train_ids, test_ids = train_test_split(
+            X_all, y_all, all_ids,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=y_all
+        )
         if len(X_all) == 0:
             print("[!] No subjects were successfully processed.")
             return (np.array([]),), (np.array([]),)
@@ -190,6 +214,7 @@ class ADHDDataLoader:
 
 if __name__ == "__main__":
     loader = ADHDDataLoader()
+    (X_train, y_train, train_ids), (X_test, y_test, test_ids) = loader.load_data()
     (X_train, y_train, train_ids), (X_test, y_test, test_ids) = loader.load_data()
 
     if len(X_train) > 0:
