@@ -24,12 +24,12 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
-# PCA: keep components to explain 80% of variance
-pca = PCA(n_components=0.80, random_state=42)
+# PCA: keep components to explain 85% of variance
+pca = PCA(n_components=0.85, random_state=42)
 X_train_pca = pca.fit_transform(X_train)
 X_test_pca = pca.transform(X_test)
 
-print(f"PCA: {X_train.shape[1]} features -> {X_train_pca.shape[1]} components (80% variance)")
+print(f"PCA: {X_train.shape[1]} features -> {X_train_pca.shape[1]} components (85% variance)")
 
 # plot explained variance
 cumvar = np.cumsum(pca.explained_variance_ratio_)
@@ -65,7 +65,7 @@ print(report)
 
 # save classification report
 with open(os.path.join(OUTPUT_DIR, 'classification_report.txt'), 'w') as f:
-    f.write(f"PCA Components: {X_train_pca.shape[1]} (80% variance)\n")
+    f.write(f"PCA Components: {X_train_pca.shape[1]} (85% variance)\n")
     f.write(f"Test Accuracy: {(y_pred == y_test).mean():.4f}\n\n")
     f.write(report)
 
