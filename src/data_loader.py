@@ -186,7 +186,18 @@ class ADHDDataLoader:
 
         print("Processing all subjects...")
         X_all, y_all, all_ids = self._process_subjects(df, combined_map, binary_classification)
+  
+        if len(X_all) == 0:
+            print("[!] No subjects were successfully processed.")
+            return (np.array([]),), (np.array([]),)
 
+        # stratified split preserves class proportions in train and test
+        X_train, X_test, y_train, y_test, train_ids, test_ids = train_test_split(
+            X_all, y_all, all_ids,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=y_all
+        )
         if len(X_all) == 0:
             print("[!] No subjects were successfully processed.")
             return (np.array([]),), (np.array([]),)
