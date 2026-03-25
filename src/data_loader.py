@@ -13,7 +13,7 @@ TEST_CONNECTOMES_DIR = 'ADHD200_CC200_TCs_TestRelease'
 
 class ADHDDataLoader:
     """Loads ADHD-200 rs-fMRI connectome data and phenotypic labels,
-    computes correlation matrrices, and returns train/test feature arrays"""
+    computes correlation matrices, and returns train/test feature arrays"""
     def __init__(self, data_dir=DATA_DIR):
         self.data_dir = data_dir
         self.train_connectomes_dir = os.path.join(data_dir, TRAIN_CONNECTOMES_DIR)
@@ -198,32 +198,16 @@ class ADHDDataLoader:
             random_state=random_state,
             stratify=y_all
         )
-        if len(X_all) == 0:
-            print("[!] No subjects were successfully processed.")
-            return (np.array([]),), (np.array([]),)
-
-        # stratified split preserves class proportions in train and test
-        X_train, X_test, y_train, y_test, train_ids, test_ids = train_test_split(
-            X_all, y_all, all_ids,
-            test_size=test_size,
-            random_state=random_state,
-            stratify=y_all
-        )
 
         return (X_train, y_train, train_ids), (X_test, y_test, test_ids)
 
 if __name__ == "__main__":
     loader = ADHDDataLoader()
     (X_train, y_train, train_ids), (X_test, y_test, test_ids) = loader.load_data()
-    (X_train, y_train, train_ids), (X_test, y_test, test_ids) = loader.load_data()
 
     if len(X_train) > 0:
         print(f"\nSuccess!")
         print(f"ROIs detected: {loader.num_rois}")
-        print(f"Feature vector length: {X_train.shape[1]}")
-        print(f"Train: {X_train.shape}  Test: {X_test.shape}")
-        print(f"Label distribution (train): {dict(zip(*np.unique(y_train, return_counts=True)))}")
-        print(f"Label distribution (test):  {dict(zip(*np.unique(y_test, return_counts=True)))}")
         print(f"Feature vector length: {X_train.shape[1]}")
         print(f"Train: {X_train.shape}  Test: {X_test.shape}")
         print(f"Label distribution (train): {dict(zip(*np.unique(y_train, return_counts=True)))}")
