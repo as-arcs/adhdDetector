@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, f1_score
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from src.data_loader import ADHDDataLoader
@@ -35,9 +35,11 @@ model.fit(X_train, y_train)
 
 # evaluate
 y_pred = model.predict(X_test)
+acc = (y_pred == y_test).mean()
+
 
 label_names = [DX_LABELS[k] for k in sorted(DX_LABELS.keys())]
-print(f"\nTest Accuracy: {(y_pred == y_test).mean():.4f}")
+print(f"\nTest Accuracy: {acc:.4f}")
 print(f"\nClassification Report:\n")
 report = classification_report(y_test, y_pred, target_names=label_names)
 print(report)
@@ -58,3 +60,18 @@ fig.savefig(os.path.join(OUTPUT_DIR, 'confusion_matrix.png'), dpi=150)
 plt.close()
 
 print(f"\nResults saved to {OUTPUT_DIR}/")
+
+import json
+
+results = {
+    "model" : "logistic regression baseline",
+    "accuracy" : float(acc),
+    "f1_macro": float(f1_score(y_test, y_pred, average="macro")),
+    "f1_weighted" : float(f1_score(y_test, y_pred, average="weighted")),
+    "classification_report" : classification_report(y_test, y_pred, output_dict=True),
+    "confusion_matrix" : cm.tolist()
+}
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_jsons', 'logistic_base')
+with open(os.path.join(OUTPUT_DIR, "results.json"), "w") as f:
+    json.dump(results, f, indent=2)

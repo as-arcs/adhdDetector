@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, classification_report, confusion_matrix
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from src.data_loader import ADHDDataLoader
@@ -24,6 +24,11 @@ X_test = scaler.transform(X_test)
 # try different PCA thresholds / number of components
 thresholds = [0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.99]
 results = []
+
+best_macro_f1 = -1
+best_y_pred = None
+best_var = None
+best_components = None
 
 for var in thresholds:
     pca = PCA(n_components=var, random_state=42)
@@ -44,6 +49,11 @@ for var in thresholds:
 
     results.append((var, X_tr.shape[1], acc, macro_f1))
     print(f"Variance: {var:.0%}  |  Components: {X_tr.shape[1]:>4}  |  Accuracy: {acc:.4f}  |  Macro F1: {macro_f1:.4f}")
+    if macro_f1 > best_macro_f1:
+        best_macro_f1 = macro_f1
+    best_y_pred = y_pred
+    best_var = var
+    best_components = X_tr.shape[1]
 
 # plot results
 vars_, comps, accs, f1s = zip(*results)
@@ -65,3 +75,24 @@ fig.savefig(os.path.join(OUTPUT_DIR, 'pca_sweep.png'), dpi=150)
 plt.close()
 
 print(f"\nPlot saved to {OUTPUT_DIR}/")
+
+import json
+
+acc = float((best_y_pred == y_test).mean())
+f1_macro = float(f1_score(y_test, best_y_pred, average='macro'))
+f1_weighted = float(f1_score(y_test, best_y_pred, average='weighted'))
+
+cm = confusion_matrix(y_test, best_y_pred)
+
+results = {
+    "model": "pca variance sweep",
+    "accuracy": float((best_y_pred == y_test).mean()),
+    "f1_macro": float(f1_score(y_test, best_y_pred, average='macro')),
+    "f1_weighted": float(f1_score(y_test, best_y_pred, average='weighted')),
+    "classification_report": classification_report(y_test, best_y_pred, output_dict=True),
+    "confusion_matrix": cm.tolist(),
+}
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_jsons', 'pca_var_sweep')
+with open(os.path.join(OUTPUT_DIR, "results.json"), "w") as f:
+    json.dump(results, f, indent=2)

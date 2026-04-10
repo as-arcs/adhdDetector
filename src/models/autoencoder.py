@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, f1_score
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from src.data_loader import ADHDDataLoader
@@ -53,7 +53,6 @@ clf = MLPClassifier(
     hidden_layer_sizes=(64, 32),
     max_iter=1000,
     random_state=42,
-    class_weight='balanced' if hasattr(MLPClassifier, 'class_weight') else None,
 )
 clf.fit(X_train_enc, y_train)
 y_pred = clf.predict(X_test_enc)
@@ -92,3 +91,18 @@ fig.savefig(os.path.join(OUTPUT_DIR, 'reconstruction_error.png'), dpi=150)
 plt.close()
 
 print(f"\nResults saved to {OUTPUT_DIR}/")
+
+import json
+
+results = {
+    "model" : "autoencoder",
+    "accuracy" : float((y_pred == y_test).mean()),
+    "f1_macro": float(f1_score(y_test, y_pred, average="macro")),
+    "f1_weighted" : float(f1_score(y_test, y_pred, average="weighted")),
+    "classification_report" : classification_report(y_test, y_pred, output_dict=True),
+    "confusion_matrix" : cm.tolist()
+}
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_jsons', 'autoencoder')
+with open(os.path.join(OUTPUT_DIR, "results.json"), "w") as f:
+    json.dump(results, f, indent=2)

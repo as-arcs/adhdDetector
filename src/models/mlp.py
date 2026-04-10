@@ -134,6 +134,27 @@ plt.close()
 
 print(f"\nResults saved to {OUTPUT_DIR}/")
 
+import json
+from sklearn.metrics import accuracy_score, f1_score, classification_report, confusion_matrix
+
+report = classification_report(all_true, all_preds, output_dict=True)
+
+if "2" in report:
+    report["3"] = report.pop("2")
+
+results = {
+    "model": "MLP",
+    "accuracy": float(accuracy_score(all_true, all_preds)),
+    "f1_macro": float(f1_score(all_true, all_preds, average="macro")),
+    "f1_weighted": float(f1_score(all_true, all_preds, average="weighted")),
+    "classification_report": report,
+    "confusion_matrix": confusion_matrix(all_true, all_preds).tolist()
+}
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_jsons', 'mlp')
+with open(os.path.join(OUTPUT_DIR, "results.json"), "w") as f:
+    json.dump(results, f, indent=2)
+
 
 
 

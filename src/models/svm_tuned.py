@@ -8,7 +8,7 @@ from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, f1_score
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from src.data_loader import ADHDDataLoader
@@ -97,3 +97,18 @@ fig.savefig(os.path.join(OUTPUT_DIR, 'confusion_matrix.png'), dpi=150)
 plt.close()
 
 print(f"\nResults saved to {OUTPUT_DIR}/")
+
+import json
+
+results = {
+    "model" : "svm tuned",
+    "accuracy" : float((y_pred == y_test).mean()),
+    "f1_macro": float(f1_score(y_test, y_pred, average="macro")),
+    "f1_weighted" : float(f1_score(y_test, y_pred, average="weighted")),
+    "classification_report" : classification_report(y_test, y_pred, output_dict=True),
+    "confusion_matrix" : cm.tolist()
+}
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_jsons', 'svm_tuned')
+with open(os.path.join(OUTPUT_DIR, "results.json"), "w") as f:
+    json.dump(results, f, indent=2)
