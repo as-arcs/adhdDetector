@@ -53,7 +53,6 @@ clf = MLPClassifier(
     hidden_layer_sizes=(64, 32),
     max_iter=1000,
     random_state=42,
-    class_weight='balanced' if hasattr(MLPClassifier, 'class_weight') else None,
 )
 clf.fit(X_train_enc, y_train)
 y_pred = clf.predict(X_test_enc)
