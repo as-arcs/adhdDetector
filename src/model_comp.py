@@ -41,6 +41,10 @@ for model_dir in MODEL_DIRS:
         "f1_weighted": data["f1_weighted"],
     })
 
+if len(model_data) == 0:
+    print("No jsons exist in models_jsons")
+    exit()
+
 df = pd.DataFrame(model_data)
 df = df.sort_values(by="f1_macro", ascending=False).reset_index(drop=True)
 

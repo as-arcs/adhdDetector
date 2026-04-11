@@ -96,5 +96,6 @@ results = {
 }
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_jsons', 'logistic_pca')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 with open(os.path.join(OUTPUT_DIR, "results.json"), "w") as f:
     json.dump(results, f, indent=2)

@@ -15,7 +15,7 @@ from src.data_loader import ADHDDataLoader
 OUTPUT_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     'outputs',
-    'mlp'
+    'mlp_base'
 )
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -45,20 +45,15 @@ test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dims=[64, 32], dropout=0.2):
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
         super().__init__()
-
-        layers = []
-        prev_dim = input_dim
-
-        for h in hidden_dims:
-            layers.append(nn.Linear(prev_dim, h))
-            layers.append(nn.ReLU())
-            layers.append(nn.Dropout(dropout))
-            prev_dim = h
-
-        layers.append(nn.Linear(prev_dim, output_dim))
-        self.net = nn.Sequential(*layers)
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim),
+        )
 
     def forward(self, x):
         return self.net(x)
@@ -70,9 +65,8 @@ output_dim = len(unique_labels)
 
 model = MLP(
     input_dim=input_dim,
+    hidden_dim=128,
     output_dim=output_dim,
-    hidden_dims=[64, 32],
-    dropout=0.2
 )
 
 # loss + optimizer
@@ -80,7 +74,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 # training loop
-epochs = 20
+epochs = 50
 train_losses = []
 
 for epoch in range(epochs):
@@ -143,7 +137,7 @@ if "2" in report:
     report["3"] = report.pop("2")
 
 results = {
-    "model": "MLP",
+    "model": "MLP baseline",
     "accuracy": float(accuracy_score(all_true, all_preds)),
     "f1_macro": float(f1_score(all_true, all_preds, average="macro")),
     "f1_weighted": float(f1_score(all_true, all_preds, average="weighted")),
@@ -151,7 +145,7 @@ results = {
     "confusion_matrix": confusion_matrix(all_true, all_preds).tolist()
 }
 
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_jsons', 'mlp')
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'model_jsons', 'mlp_base')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 with open(os.path.join(OUTPUT_DIR, "results.json"), "w") as f:
     json.dump(results, f, indent=2)
