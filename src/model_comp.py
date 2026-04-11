@@ -16,10 +16,13 @@ MODEL_DIRS = [
     "logistic_base",
     "logistic_pca",
     "mlp",
+    "mlp_base",
     "pca_var_sweep",
     "svm",
     "svm_base",
-    "svm_tuned"
+    "svm_tuned",
+    "autoencoder_base",
+    "autoencoder_tuned"
 ]
 
 model_data = []
@@ -70,6 +73,12 @@ plt.tight_layout()
 plt.savefig(os.path.join(BASE_OUTPUT_DIR, "model_bars.png"), dpi=150)
 plt.close()
 
+DX_LABELS = {
+    0: "Control",
+    1: "ADHD-Combined",
+    3: "ADHD-Inattentive"
+}
+
 cms = []
 titles = []
 
@@ -87,25 +96,75 @@ for model_dir in MODEL_DIRS:
 
     cm = np.array(data["confusion_matrix"])
 
-    # normalize rows (important)
+    # normalize rows
     cm = cm / cm.sum(axis=1, keepdims=True)
 
-    cms.append(cm)
-    titles.append(data.get("model", model_dir))
+    model_name = data.get("model", model_dir)
+    class_order = sorted(DX_LABELS.keys())
+    display_labels = [DX_LABELS[k] for k in class_order]
 
-# plot side-by-side
-if cms:
-    fig, axes = plt.subplots(1, len(cms), figsize=(5 * len(cms), 4))
 
-    # handle case of only 1 model
-    if len(cms) == 1:
-        axes = [axes]
-
-    for ax, cm, title in zip(axes, cms, titles):
-        disp = ConfusionMatrixDisplay(cm)
-        disp.plot(ax=ax, colorbar=False)
-        ax.set_title(title)
-
+    # save matrices
+    fig, ax = plt.subplots(figsize=(6, 5))
+    disp = ConfusionMatrixDisplay(
+        confusion_matrix=cm,
+        display_labels=display_labels
+    )
+    disp.plot(ax=ax, colorbar=False)
+    ax.set_title(f"{model_name} Confusion Matrix")
+    plt.xticks(rotation=20, ha="right")
     plt.tight_layout()
-    plt.savefig(os.path.join(BASE_OUTPUT_DIR, "confusion_matrix_comparison.png"), dpi=150)
+    plt.savefig(
+        os.path.join(BASE_OUTPUT_DIR, f"{model_dir}_confusion_matrix.png"),
+        dpi=150
+    )
     plt.close()
+
+    cms.append(cm)
+    titles.append(model_name)
+
+per_class_data = []
+
+for model_dir in MODEL_DIRS:
+    result_path = os.path.join(BASE_OUTPUT_DIR, model_dir, "results.json")
+
+    if not os.path.exists(result_path):
+        continue
+
+    with open(result_path, "r") as f:
+        data = json.load(f)
+
+    report = data["classification_report"]
+
+    for label, metrics in report.items():
+        if label in ["accuracy", "macro avg", "weighted avg"]:
+            continue
+
+        per_class_data.append({
+            "model": data.get("model", model_dir),
+            "label": str(label),
+            "precision": metrics["precision"],
+            "recall": metrics["recall"],
+            "f1_score": metrics["f1-score"],
+            "support": metrics["support"]
+        })
+
+if per_class_data:
+    per_class_df = pd.DataFrame(per_class_data)
+
+    best_per_label = per_class_df.loc[
+        per_class_df.groupby("label")["f1_score"].idxmax()
+    ].sort_values("label")
+
+    print("\nBest model for each label:")
+    print(best_per_label)
+
+    per_class_df.to_csv(
+        os.path.join(BASE_OUTPUT_DIR, "per_class_model_comparison.csv"),
+        index=False
+    )
+
+    best_per_label.to_csv(
+        os.path.join(BASE_OUTPUT_DIR, "best_model_per_label.csv"),
+        index=False
+    )
